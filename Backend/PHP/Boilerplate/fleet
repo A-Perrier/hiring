@@ -1,0 +1,30 @@
+#!/usr/bin/env php
+<?php
+
+require_once "vendor/autoload.php";
+
+use Fulll\App\Fleet\Command\CreateFleetCommand;
+use Fulll\App\Fleet\Command\LocalizeVehicleCommand;
+use Fulll\App\Fleet\Command\RegisterVehicleCommand;
+use Symfony\Component\Console\Application;
+
+$commandName = $argv[1];
+$params = array_splice($argv, 2);
+
+$app = new Application();
+
+switch ($commandName) {
+    case 'create':
+        $app->add(new CreateFleetCommand());
+        break;
+
+    case 'register-vehicle':
+        $app->add(new RegisterVehicleCommand());
+        break;
+
+    case 'localize-vehicle':
+        $app->add(new LocalizeVehicleCommand());
+        break;
+}
+
+$app->run();
