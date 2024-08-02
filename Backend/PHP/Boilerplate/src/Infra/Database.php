@@ -52,6 +52,11 @@ class Database
 
     public function initializeTables(): void
     {
+        if ($this->pdo === null) {
+            $this->createDatabase();
+            $this->login();
+        }
+
         foreach (self::ENTITIES_TO_INITIALIZE as $entity) {
             $repository = new $entity($this->pdo);
             $repository->createTable();
@@ -69,10 +74,12 @@ class Database
         }
 
         $dsn = "mysql:host=$this->host;dbname=$this->dbname";
-        return new PDO($dsn, $this->username, $this->password, [
+        $this->pdo = new PDO($dsn, $this->username, $this->password, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ]);
+
+        return $this->pdo;
     }
 
     private function createDatabase(): void
