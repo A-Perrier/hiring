@@ -9,8 +9,8 @@ use Symfony\Component\Dotenv\Dotenv;
 class Database
 {
     private const array ENTITIES_TO_INITIALIZE = [
-        Fleet\Repository\UserRepository::class,
         Fleet\Repository\FleetRepository::class,
+        Fleet\Repository\UserRepository::class,
         Fleet\Repository\VehicleRepository::class,
         Fleet\Repository\FleetVehicleRepository::class
     ];

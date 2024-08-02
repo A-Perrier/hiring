@@ -20,7 +20,8 @@ class UserRepository extends AbstractRepository
     {
         $sql = "CREATE TABLE IF NOT EXISTS `users` (
             `id` int(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-            `fleetId` int(11) NULL DEFAULT NULL
+            `fleetId` int(11) NULL DEFAULT NULL,
+            FOREIGN KEY (`fleetId`) REFERENCES `fleets` (`id`)
         )";
 
         $this->query($sql);
