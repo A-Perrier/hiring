@@ -3,23 +3,26 @@
 declare(strict_types=1);
 
 use Behat\Behat\Context\Context;
-use Behat\Behat\Tester\Exception\PendingException;
 use Fulll\Domain\Fleet\Entity\User;
-use Fulll\Domain\Fleet\Entity\Vehicle;
-use Fulll\Domain\Fleet\Exception\VehicleAlreadyParkedAtLocationException;
-use Fulll\Domain\Fleet\Exception\VehicleAlreadyRegisteredException;
-use Fulll\Domain\Fleet\Exception\VehicleNotFoundAtLocationException;
-use Fulll\Domain\Fleet\Exception\VehicleNotRegisteredInFleetException;
-use Fulll\Domain\Fleet\ValueObject\Location;
-use Fulll\Domain\Fleet\ValueObject\VehiclePlateNumber;
+use Fulll\Infra\Database;
+use Fulll\Infra\Fleet\Exception\FleetNotFoundException;
+use Fulll\Infra\Fleet\Exception\VehicleNotFoundException;
+use Fulll\Infra\Fleet\Repository\UserRepository;
+use Fulll\Infra\Fleet\Repository\VehicleRepository;
 
 class FeatureContext implements Context
 {
-    private array $users = [];
-    private array $vehicles = [];
-    private array $locations = [];
-    private null|VehicleAlreadyRegisteredException|VehicleAlreadyParkedAtLocationException $error = null;
-    private string $activeUserId = '1';
+    private string $output;
+    private PDO $pdo;
+    private UserRepository $userRepository;
+    private VehicleRepository $vehicleRepository;
+    private User $mainUser;
+    private User $secondUser;
+    private array $location = [
+        'lat' => '54',
+        'lng' => '102'
+    ];
+    private string $samplePlateNumber = 'XX-123-XR';
 
 
     /**
@@ -27,10 +30,15 @@ class FeatureContext implements Context
      */
     public function myFleet()
     {
-        $mainUser = new User('1');
-        $this->users[] = $mainUser;
+        $userId = 1;
+        $this->pdo = (new Database())->login();
+        $this->userRepository = new UserRepository($this->pdo);
+        $this->output = shell_exec("php ./fleet create $userId");
+        $this->mainUser = $this->userRepository->findById($userId);
 
-        return $mainUser->getFleet();
+        if ($this->mainUser->getFleetId() === null) {
+            throw new FleetNotFoundException();
+        }
     }
 
     /**
@@ -38,12 +46,12 @@ class FeatureContext implements Context
      */
     public function aVehicle()
     {
-        $vehicle = new Vehicle(
-            new VehiclePlateNumber('XX-123-XX')
-        );
+        $this->vehicleRepository = new VehicleRepository($this->pdo);
+        $vehicle = $this->vehicleRepository->findByPlateNumber($this->samplePlateNumber);
 
-        $this->vehicles[] = $vehicle;
-        return $vehicle;
+        if ($vehicle === null) {
+            throw new VehicleNotFoundException();
+        }
     }
 
     /**
@@ -51,9 +59,12 @@ class FeatureContext implements Context
      */
     public function iHaveRegisteredThisVehicleIntoMyFleet()
     {
-        $user = array_filter($this->users, fn($user) => $user->getId() === $this->activeUserId)[0];
-        $vehicle = array_filter($this->vehicles, fn($vehicle) => $vehicle->getPlateNumber() === 'XX-123-XX')[0];
-        $user->getFleet()->addVehicle($vehicle);
+        try {
+            $this->output = shell_exec("php ./fleet register-vehicle {$this->mainUser->getFleetId()} $this->samplePlateNumber");
+        } catch (Throwable $e) {
+            // Making sure that any Error thrown results as a test failure
+            throw new Exception($e->getMessage());
+        }
     }
 
     /**
@@ -61,8 +72,7 @@ class FeatureContext implements Context
      */
     public function aLocation()
     {
-        $location = new Location('-24', '-75');
-        $this->locations[] = $location;
+        return $this->location;
     }
 
     /**
@@ -70,9 +80,11 @@ class FeatureContext implements Context
      */
     public function iParkMyVehicleAtThisLocation()
     {
-        $user = array_values(array_filter($this->users, fn($user) => $user->getId() === $this->activeUserId))[0];
-        $vehicle = $user->getFleet()->getVehicles()[0];
-        $vehicle->setLocation($this->locations[0]);
+        try {
+            $this->output = shell_exec("php ./fleet localize-vehicle {$this->mainUser->getFleetId()} $this->samplePlateNumber --lat={$this->location['lat']} --lng={$this->location['lng']}");
+        } catch (Throwable $e) {
+            throw new Exception($e->getMessage());
+        }
     }
 
     /**
@@ -80,11 +92,8 @@ class FeatureContext implements Context
      */
     public function theKnownLocationOfMyVehicleShouldVerifyThisLocation()
     {
-        $user = array_values(array_filter($this->users, fn($user) => $user->getId() === $this->activeUserId))[0];
-        $vehicle = $user->getFleet()->localizeVehicle($this->locations[0]);
-
-        if ($vehicle === null) {
-            throw new VehicleNotFoundAtLocationException();
+        if (strpos($this->output, 'This vehicle has been moved to the provided location') === false) {
+            throw new Exception('The user has not been notified its vehicle has been moved');
         }
     }
 
@@ -93,13 +102,14 @@ class FeatureContext implements Context
      */
     public function myVehicleHasBeenParkedIntoThisLocation()
     {
-        $user = array_values(array_filter($this->users, fn($user) => $user->getId() === $this->activeUserId))[0];
-        $vehicle = $user->getFleet()->getVehicles()[0];
-        $vehicle->setLocation($this->locations[0]);
-        $vehicle = $user->getFleet()->localizeVehicle($this->locations[0]);
+        $vehicle = $this->vehicleRepository->findByFleetIdAndPlateNumber($this->mainUser->getFleetId(), $this->samplePlateNumber);
 
         if ($vehicle === null) {
-            throw new VehicleNotFoundAtLocationException();
+            throw new VehicleNotFoundException();
+        }
+
+        if (($vehicle->getLat() !== $this->location['lat']) && ($vehicle->getLng() !== $this->location['lng'])) {
+            throw new VehicleNotFoundException();
         }
     }
 
@@ -108,15 +118,11 @@ class FeatureContext implements Context
      */
     public function iTryToParkMyVehicleAtThisLocation()
     {
-        $user = array_values(array_filter($this->users, fn($user) => $user->getId() === $this->activeUserId))[0];
-        $vehicle = $user->getFleet()->localizeVehicle($this->locations[0]);
-
         try {
-            $vehicle->setLocation($this->locations[0]);
-        } catch (VehicleAlreadyParkedAtLocationException $e) {
-            $this->error = $e;
+            $this->output = shell_exec("php ./fleet localize-vehicle {$this->mainUser->getFleetId()} $this->samplePlateNumber --lat={$this->location['lat']} --lng={$this->location['lng']}");
+        } catch (Throwable $e) {
+            throw new Exception($e->getMessage());
         }
-
     }
 
     /**
@@ -124,7 +130,7 @@ class FeatureContext implements Context
      */
     public function iShouldBeInformedThatMyVehicleIsAlreadyParkedAtThisLocation()
     {
-        if (!$this->error instanceof VehicleAlreadyParkedAtLocationException) {
+        if (strpos($this->output, 'This vehicle is already parked at this location') === false) {
             throw new Exception('The user has not been notified its vehicle is already parked at this location');
         }
     }
@@ -134,10 +140,12 @@ class FeatureContext implements Context
      */
     public function iRegisterThisVehicleIntoMyFleet()
     {
-        $user = array_values(array_filter($this->users, fn($user) => $user->getId() === $this->activeUserId))[0];
-        $vehicle = array_filter($this->vehicles, fn($vehicle) => $vehicle->getPlateNumber() === 'XX-123-XX')[0];
-
-        $user->getFleet()->addVehicle($vehicle);
+        try {
+            $this->output = shell_exec("php ./fleet register-vehicle {$this->mainUser->getFleetId()} $this->samplePlateNumber");
+        } catch (Throwable $e) {
+            // Making sure that any Error thrown results as a test failure
+            throw new Exception($e->getMessage());
+        }
     }
 
     /**
@@ -145,18 +153,11 @@ class FeatureContext implements Context
      */
     public function thisVehicleShouldBePartOfMyVehicleFleet()
     {
-        $testedPlateNumber = 'XX-123-XX';
-        $user = array_values(array_filter($this->users, fn($user) => $user->getId() === $this->activeUserId))[0];
-        $vehicles = $user->getFleet()->getVehicles();
+        $vehicle = $this->vehicleRepository->findByFleetIdAndPlateNumber($this->mainUser->getFleetId(), $this->samplePlateNumber);
 
-        foreach ($vehicles as $vehicle) {
-            if ($vehicle->getPlateNumber() === $testedPlateNumber) {
-                return true;
-            }
+        if ($vehicle === null) {
+            throw new VehicleNotFoundException();
         }
-
-
-        throw new VehicleNotRegisteredInFleetException(vehiclePlateNumber: $testedPlateNumber);
     }
 
     /**
@@ -164,12 +165,11 @@ class FeatureContext implements Context
      */
     public function iTryToRegisterThisVehicleIntoMyFleet()
     {
-        $user = array_filter($this->users, fn($user) => $user->getId() === '1')[0];
-        $vehicle = array_values(array_filter($this->vehicles, fn($vehicle) => $vehicle->getPlateNumber() === 'XX-123-XX'))[0];
         try {
-            $user->getFleet()->addVehicle($vehicle);
-        } catch (VehicleAlreadyRegisteredException $e) {
-            $this->error = $e;
+            $this->output = shell_exec("php ./fleet register-vehicle {$this->mainUser->getFleetId()} $this->samplePlateNumber");
+        } catch (Throwable $e) {
+            // Making sure that any Error thrown results as a test failure
+            throw new Exception($e->getMessage());
         }
     }
 
@@ -178,7 +178,7 @@ class FeatureContext implements Context
      */
     public function iShouldBeInformedThisThisVehicleHasAlreadyBeenRegisteredIntoMyFleet()
     {
-        if (!$this->error instanceof VehicleAlreadyRegisteredException) {
+        if (strpos($this->output, 'This vehicle already belongs to this fleet') === false) {
             throw new Exception('The user has not been notified its vehicle is already registered');
         }
     }
@@ -188,10 +188,15 @@ class FeatureContext implements Context
      */
     public function theFleetOfAnotherUser()
     {
-        $secondUser = new User('2');
-        $this->users[] = $secondUser;
+        $userId = 2;
+        $this->pdo = (new Database())->login();
+        $this->userRepository = new UserRepository($this->pdo);
+        $this->output = shell_exec("php ./fleet create $userId");
+        $this->secondUser = $this->userRepository->findById($userId);
 
-        return $secondUser->getFleet();
+        if ($this->secondUser->getFleetId() === null) {
+            throw new FleetNotFoundException();
+        }
     }
 
     /**
@@ -199,10 +204,11 @@ class FeatureContext implements Context
      */
     public function thisVehicleHasBeenRegisteredIntoTheOtherUsersFleet()
     {
-        $testedPlateNumber = 'XX-123-XX';
-        $anotherUser = array_filter($this->users, fn($user) => $user->getId() === '1')[0];
-        $vehicle = array_filter($this->vehicles, fn($vehicle) => $vehicle->getPlateNumber() === $testedPlateNumber)[0];
-        $anotherUser->getFleet()->addVehicle($vehicle);
-        $this->activeUserId = '2';
+        try {
+            $this->output = shell_exec("php ./fleet register-vehicle {$this->secondUser->getFleetId()} $this->samplePlateNumber");
+        } catch (Throwable $e) {
+            // Making sure that any Error thrown results as a test failure
+            throw new Exception($e->getMessage());
+        }
     }
 }

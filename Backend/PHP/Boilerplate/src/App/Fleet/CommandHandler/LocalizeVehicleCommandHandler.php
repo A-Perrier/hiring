@@ -2,15 +2,15 @@
 
 namespace Fulll\App\Fleet\CommandHandler;
 
-use Fulll\Domain\Fleet\Entity\Vehicle;
 use Fulll\Infra\Database;
 use Fulll\Infra\Fleet\Exception\FleetNotFoundException;
+use Fulll\Infra\Fleet\Exception\VehicleNotFoundException;
 use Fulll\Infra\Fleet\Repository\FleetRepository;
 use Fulll\Infra\Fleet\Repository\VehicleRepository;
 
-class RegisterVehicleCommandHandler
+class LocalizeVehicleCommandHandler
 {
-    public function handle(int $fleetId, string $vehiclePlateNumber): array
+    public function handle(int $fleetId, string $vehiclePlateNumber, string $lat, string $lng): array
     {
         try {
             $connection = (new Database())->login();
@@ -23,22 +23,27 @@ class RegisterVehicleCommandHandler
             }
 
             $vehicleRepository = new VehicleRepository($connection);
-            $vehicle = $vehicleRepository->findByPlateNumber($vehiclePlateNumber);
+            $vehicle = $vehicleRepository->findByFleetIdAndPlateNumber($fleetId, $vehiclePlateNumber);
 
             if ($vehicle === null) {
-                $vehicle = $vehicleRepository->create((new Vehicle())->setPlateNumber($vehiclePlateNumber));
+                throw new VehicleNotFoundException();
             }
 
-            if ($fleetRepository->hasVehicle($fleet, $vehicle)) {
+            if (((string) $vehicle->getLat() === $lat) && ((string) $vehicle->getLng() === $lng)) {
                 return [
-                    'message' => 'This vehicle already belongs to this fleet.',
-                    'fleetId' => $fleet->getId(),
+                    'message' => 'This vehicle is already parked at this location.'
                 ];
             }
 
-            $fleetRepository->addVehicle($fleet, $vehicle);
+            $vehicle->setLat($lat)
+                    ->setLng($lng)
+            ;
+
+            $vehicleRepository->save($vehicle);
+
+
             return [
-                'message' => 'This vehicle has been added to this fleet.',
+                'message' => 'This vehicle has been moved to the provided location.',
                 'fleetId' => $fleet->getId(),
             ];
         } catch (\Throwable $e) {

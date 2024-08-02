@@ -6,7 +6,12 @@ require_once "vendor/autoload.php";
 use Fulll\App\Fleet\Command\CreateFleetCommand;
 use Fulll\App\Fleet\Command\LocalizeVehicleCommand;
 use Fulll\App\Fleet\Command\RegisterVehicleCommand;
+use Fulll\App\Fleet\Command\CreateUserCommand;
+use Fulll\Infra\Database;
 use Symfony\Component\Console\Application;
+
+// In the context of this test, make sure all database config is set up.
+(new Database())->initializeTables();
 
 $commandName = $argv[1];
 $params = array_splice($argv, 2);
@@ -24,6 +29,9 @@ switch ($commandName) {
 
     case 'localize-vehicle':
         $app->add(new LocalizeVehicleCommand());
+        break;
+    case 'create-users':
+        $app->add(new CreateUserCommand());
         break;
 }
 

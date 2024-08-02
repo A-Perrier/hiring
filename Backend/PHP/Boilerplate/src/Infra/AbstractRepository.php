@@ -7,7 +7,6 @@ use PDOStatement;
 
 class AbstractRepository
 {
-
     protected PDO $pdo;
 
     public function query(string $sql, array $params = []): PDOStatement

@@ -2,38 +2,48 @@
 
 namespace Fulll\Domain\Fleet\Entity;
 
-use Fulll\Domain\Fleet\Exception\VehicleAlreadyParkedAtLocationException;
-use Fulll\Domain\Fleet\ValueObject\Location;
-use Fulll\Domain\Fleet\ValueObject\VehiclePlateNumber;
-
 class Vehicle
 {
-    public function __construct(
-        private VehiclePlateNumber $plateNumber,
-        private ?Location $location = null,
-    ) {
+    private int $id;
+    private string $plateNumber;
+    private ?string $lat = null;
+    private ?string $lng = null;
+
+    public function getId(): int
+    {
+        return $this->id;
     }
 
     public function getPlateNumber(): string
     {
-        return $this->plateNumber->getValue();
+        return $this->plateNumber;
     }
 
-    public function getLocation(): ?Location
+    public function setPlateNumber(string $plateNumber): self
     {
-        return $this->location;
+        $this->plateNumber = $plateNumber;
+        return $this;
     }
 
-    public function setLocation(Location $location): self
+    public function getLat(): ?string
     {
-        if (
-            $location->getLat() === $this->location?->getLat() &&
-            $location->getLng() === $this->location?->getLng()
-        ) {
-            throw new VehicleAlreadyParkedAtLocationException(vehiclePlateNumber: $this->getPlateNumber());
-        }
+        return $this->lat;
+    }
 
-        $this->location = $location;
+    public function setLat(?string $lat): self
+    {
+        $this->lat = $lat;
+        return $this;
+    }
+
+    public function getLng(): ?string
+    {
+        return $this->lng;
+    }
+
+    public function setLng(?string $lng): self
+    {
+        $this->lng = $lng;
         return $this;
     }
 }

@@ -2,12 +2,6 @@
 
 namespace Fulll\Infra;
 
-use Fulll\Infra\{
-    FleetRepository,
-    FleetVehicleRepository,
-    UserRepository,
-    VehicleRepository
-};
 use PDO;
 use PDOException;
 use Symfony\Component\Dotenv\Dotenv;
@@ -15,13 +9,13 @@ use Symfony\Component\Dotenv\Dotenv;
 class Database
 {
     private const array ENTITIES_TO_INITIALIZE = [
-        Fleet\UserRepository::class,
-        Fleet\FleetRepository::class,
-        Fleet\VehicleRepository::class,
-        Fleet\FleetVehicleRepository::class
+        Fleet\Repository\UserRepository::class,
+        Fleet\Repository\FleetRepository::class,
+        Fleet\Repository\VehicleRepository::class,
+        Fleet\Repository\FleetVehicleRepository::class
     ];
 
-    private PDO $pdo;
+    private ?PDO $pdo = null;
     private string $dbname;
     private string $host;
     private string $username;
@@ -64,8 +58,16 @@ class Database
         }
     }
 
-    private function login(): PDO
+    /**
+     * Retrieve the database connection
+     * @return PDO
+     */
+    public function login(): PDO
     {
+        if ($this->pdo !== null) {
+            return $this->pdo;
+        }
+
         $dsn = "mysql:host=$this->host;dbname=$this->dbname";
         return new PDO($dsn, $this->username, $this->password, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
