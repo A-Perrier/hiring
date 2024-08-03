@@ -23,3 +23,13 @@ We could imagine a workflow which triggers on push on main branch.
 This one would clone the project thanks to [`actions/checkout`](https://github.com/actions/checkout) action, then
 run quality tools such these suggested above to finally, in case of success, deploy to production environment using
 environment variables that would have been set up into the GitHub organization / repository.
+
+
+---
+
+### Other comments
+
+It was the very first time for me to use Behat (and BDD), DDD, CQRS. I probably have done a lot of absurd mistakes in architecture from the point of view of long time users.
+I documented myself a lot of all this, trying to complete this test the hard way (it would have been much easier in my comfort zone, but no pain no gain... :)).
+I prefered using native PHP because I find it overkill to use a whole Symfony application for these simple features and found the exercice more challenging like this.
+I don't really know what you'll think about the results of this test, but it was a lot of fun and I had much interest of these new concepts and I will look further quickly, so, whatever you judge this test, thank you for giving me the opportunity to reach new skills. :)
