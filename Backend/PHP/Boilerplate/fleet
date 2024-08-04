@@ -30,6 +30,7 @@ switch ($commandName) {
     case 'localize-vehicle':
         $app->add(new LocalizeVehicleCommand());
         break;
+
     case 'create-users':
         $app->add(new CreateUserCommand());
         break;
